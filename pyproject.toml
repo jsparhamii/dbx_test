@@ -44,9 +44,22 @@ dev = [
     "mypy>=1.0.0",
     "build>=1.0.0",
 ]
+spark = [
+    "pyspark>=3.4.0",
+]
+connect = [
+    "databricks-connect>=13.0.0",
+]
+all = [
+    "pyspark>=3.4.0",
+    "databricks-connect>=13.0.0",
+]
 
 [project.scripts]
 dbx_test = "dbx_test.cli:main"
+
+[project.entry-points.pytest11]
+dbx_test = "dbx_test.plugin"
 
 [project.urls]
 Homepage = "https://github.com/jsparhamii/dbx_test"
