@@ -166,9 +166,10 @@ class TestNotebookTestFixture:
         
         fixture = TestFixture()
         test_methods = fixture._get_test_methods()
-        
-        # Should find test_one and test_two, but not others
-        test_names = [name for name, _ in test_methods]
+
+        # _get_test_methods yields (test_name, method, params, param_id) tuples.
+        # Should find test_one and test_two, but not others.
+        test_names = [entry[0] for entry in test_methods]
         assert "test_one" in test_names
         assert "test_two" in test_names
         assert "not_a_test" not in test_names

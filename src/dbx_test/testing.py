@@ -408,8 +408,8 @@ class NotebookTestFixture(ABC):
         for name in dir(self):
             if not name.startswith("test_") or name.startswith("test__"):
                 continue
-            
-                method = getattr(self, name)
+
+            method = getattr(self, name)
             if not callable(method):
                 continue
             
