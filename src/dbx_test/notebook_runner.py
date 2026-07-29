@@ -150,14 +150,33 @@ class NotebookRunner:
         
         return aggregated
     
+    def _discover_caller_fixtures(self) -> List[type]:
+        """Find fixture classes in the calling notebook's module scope.
+
+        Walk up the stack to the nearest frame OUTSIDE this package (dbx_test) and use its globals.
+        A fixed `_getframe(N)` is fragile: the depth to the notebook differs between calling
+        `run_notebook_tests()` (which wraps `NotebookRunner.run`) and calling `NotebookRunner().run()`
+        directly, so a hardcoded index lands on a dbx_test frame and discovers nothing. Walking to the
+        first non-dbx_test frame is depth-independent and works for both entry points.
+        """
+        depth = 1
+        while True:
+            try:
+                frame = sys._getframe(depth)
+            except ValueError:
+                return []  # ran off the top of the stack without finding a caller frame
+            module = frame.f_globals.get("__name__", "")
+            # Skip frames inside this package only. Match the package exactly ("dbx_test" or a
+            # "dbx_test." submodule) rather than a bare prefix, so a caller module that merely
+            # starts with "dbx_test" (e.g. a notebook named dbx_test_demo) is NOT skipped.
+            if module != "dbx_test" and not module.startswith("dbx_test."):
+                return discover_fixtures(frame.f_globals)
+            depth += 1
+
     def _run_all_fixtures(self) -> Dict[str, Any]:
         """Discover and run all test fixtures in the current notebook."""
-        # Get the caller's globals to discover fixtures
-        frame = sys._getframe(2)  # Go up 2 frames to get notebook scope
-        caller_globals = frame.f_globals
-        
-        fixtures = discover_fixtures(caller_globals)
-        
+        fixtures = self._discover_caller_fixtures()
+
         if not fixtures:
             print("No test fixtures found in the notebook.")
             print("Make sure your test classes inherit from NotebookTestFixture.")
