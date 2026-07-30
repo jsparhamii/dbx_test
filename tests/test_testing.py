@@ -413,3 +413,51 @@ class TestNotebookTestFixtureParallel:
         assert len(results) == 1
         assert results[0].status == "passed"
 
+
+
+class TestNoArgNotebookDiscovery:
+    """Regression: run_notebook_tests() with no argument must discover fixtures in the CALLER's
+    module scope, through the run_notebook_tests -> NotebookRunner.run -> _run_all_fixtures wrapper
+    chain. A hardcoded _getframe(2) landed on a dbx_test frame and discovered nothing (total=0)."""
+
+    def _run_in_module(self, source: str):
+        """Exec `source` as its own module (mimicking a notebook's global scope) and return the
+        `RESULT` it binds. The fixture + the run_notebook_tests() call share that module's globals,
+        exactly like a notebook cell."""
+        import sys, types
+        mod = types.ModuleType("fake_notebook_scope")
+        sys.modules["fake_notebook_scope"] = mod
+        try:
+            exec(compile(source, "fake_notebook_scope", "exec"), mod.__dict__)
+            return mod.__dict__["RESULT"]
+        finally:
+            sys.modules.pop("fake_notebook_scope", None)
+
+    def test_no_arg_discovers_caller_fixtures(self):
+        result = self._run_in_module(
+            "from dbx_test import NotebookTestFixture, run_notebook_tests\n"
+            "class TestInNotebook(NotebookTestFixture):\n"
+            "    def test_ok(self):\n"
+            "        assert True\n"
+            "    def test_two(self):\n"
+            "        assert 1 == 1\n"
+            "RESULT = run_notebook_tests(verbose=False)\n"
+        )
+        # Before the fix this was total=0 (no fixtures found via the wrong frame).
+        assert result["total"] == 2
+        assert result["passed"] == 2
+        assert result["failed"] == 0
+
+    def test_direct_runner_run_also_discovers(self):
+        # NotebookRunner().run() is one frame shallower than the run_notebook_tests() wrapper;
+        # the stack-walk must handle both entry points, not a single hardcoded depth.
+        result = self._run_in_module(
+            "from dbx_test import NotebookTestFixture\n"
+            "from dbx_test.notebook_runner import NotebookRunner\n"
+            "class TestInNotebook(NotebookTestFixture):\n"
+            "    def test_ok(self):\n"
+            "        assert True\n"
+            "RESULT = NotebookRunner(verbose=False).run()\n"
+        )
+        assert result["total"] == 1
+        assert result["passed"] == 1
